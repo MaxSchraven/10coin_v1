@@ -65,16 +65,12 @@ UART_HandleTypeDef huart2;
 uint32_t clkspeed = 16000000;
 
 uint32_t ADC_Buff[5];
-uint32_t adc_val_0;
-uint32_t adc_val_1;
-uint32_t adc_val_2;
-float meas_volt_1 = 0.0f;
-int32_t meas_volt_print = 0;
+int32_t meas_volt[5];
 
 uint32_t PWM_Freq = 200;
 float PWM_DutyC = 50;
-int32_t PWM_Period;
-int32_t PWM_PulseWidth;
+int32_t PWM_Period = 65535;
+int32_t PWM_PulseWidth = 32767;
 int32_t conter = 0;
 
 // char userstring[80];
@@ -110,25 +106,25 @@ PUTCHAR_PROTOTYPE
   return ch;
 }
 
-#ifdef __GNUC__
-#define GETCHAR_PROTOTYPE int __io_getchar(void)
-#else
-#define GETCHAR_PROTOTYPE int fgetc(FILE *f)
-#endif
+// #ifdef __GNUC__
+// #define GETCHAR_PROTOTYPE int __io_getchar(void)
+// #else
+// #define GETCHAR_PROTOTYPE int fgetc(FILE *f)
+// #endif
 
-GETCHAR_PROTOTYPE
-{
-  uint8_t ch = 0;
+// GETCHAR_PROTOTYPE
+// {
+//   uint8_t ch = 0;
 
-  /* Clear the Overrun flag just before receiving the first character */
-  __HAL_UART_CLEAR_OREFLAG(&huart2);
+//   /* Clear the Overrun flag just before receiving the first character */
+//   __HAL_UART_CLEAR_OREFLAG(&huart2);
 
-  /* Wait for reception of a character on the USART RX line and echo this
-   * character on console */
-  HAL_UART_Receive(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
-  HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
-  return ch;
-}
+//   /* Wait for reception of a character on the USART RX line and echo this
+//    * character on console */
+//   HAL_UART_Receive(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+//   HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+//   return ch;
+// }
 
 
 long map(long x, long in_min, long in_max, long out_min, long out_max)
@@ -191,28 +187,21 @@ int main(void)
   MX_TIM16_Init();
   MX_TIM17_Init();
   MX_USART2_UART_Init();
-  setvbuf(stdin, NULL, _IONBF, 0);
+  // setvbuf(stdin, NULL, _IONBF, 0); // for scanf
   /* USER CODE BEGIN 2 */
   // printf("USER CODE BEGIN 2 \n");
   PWM_Period = clkspeed/(2*PWM_Freq) - 1;
-  PWM_PulseWidth = (int)((PWM_Period * PWM_DutyC)/100);
-  PWM_DutyC = 50;
+  PWM_DutyC  = 50;
 
+  TIM3->ARR  = PWM_Period;
+  TIM3->CCR1 = (int)((PWM_Period*PWM_DutyC)/100);
+  // __HAL_TIM_SET_AUTORELOAD(&htim1, PWM_Period);
+  // __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, (int)((PWM_Period*PWM_DutyC)/100));
 
-  __HAL_TIM_SET_AUTORELOAD(&htim3, PWM_Period);
-  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, PWM_PulseWidth);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 
   HAL_ADCEx_Calibration_Start(&hadc1);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADC_Buff, 5);
-
-  printf("Enter duty cycle (percent 0-100)");
-  scanf("%ld\n", &userinput);
-  TIM3->CCR1 = (int)((PWM_Period*userinput)/100);
-  
-  printf("Enter PWM freq (Hz)");
-  scanf("%ld\n", &userinput);
-  htim3.Init.Period = (int) clkspeed/userinput - 1;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -221,20 +210,22 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+    // counter for serial debugging
     printf("counter: %ld\n", (long)conter);
     conter++;
-    // PWM_DutyC = ((((float)ADC_Buff[0])/4095.0f)*3.3f)*111.11f;
+    
+    PWM_Freq    = map(meas_volt[0], 0, 3300, 200, 5000); 
+    PWM_DutyC   = map(meas_volt[1], 0, 3300, 0, 100);
+    // TIM3->CCR1  = (int)((PWM_Period*PWM_DutyC)/100);
+    // TIM3->ARR   = clkspeed/(2*PWM_Freq) - 1;
 
-    // meas_volt_print = (int)(meas_volt_1*100);
-    PWM_PulseWidth = (int)((PWM_Period*PWM_DutyC)/100);
-    TIM3->CCR1 = PWM_PulseWidth;
+    // print voltage measurement to compare to scope
     for (int i = 0; i < 5; i++)
     {
-       printf("ADC_%d:%d\n", i, (int)(((((float)ADC_Buff[i])/4095.0f)*3.3f)*100));
+       printf("ADC_%d:%ld\n", i, meas_volt[i]);
     }
     
-      
-    // printf("ADC V: 0: %d 1: %d 2: %d V - DutyC %d\r\n", adc_val_0, adc_val_1, adc_val_2, (int) PWM_DutyC);
+    // so the serial monitor is readable at all
     HAL_Delay(500);
     /* USER CODE BEGIN 3 */
   }
@@ -706,8 +697,11 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
   UNUSED(hadc);
 
-    adc_val_1 = ADC_Buff[3];
-    meas_volt_1 = (((float)adc_val_1)/4095.0f)*3.3f;
+    for(int i = 0; i < 5; i++)
+    {
+      meas_volt[i] = ((ADC_Buff[i]*3300)/4095);
+    }
+    
 }
 /* USER CODE END 4 */
 
