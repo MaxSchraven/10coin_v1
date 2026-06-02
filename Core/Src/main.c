@@ -25,11 +25,13 @@
 #include "stdint.h"
 #include "stm32g0xx_hal.h"
 #include "stm32g0xx_hal_adc.h"
+#include "stm32g0xx_hal_tim.h"
 #include "string.h"
 #include "stdio.h"
 #include "cmsis_compiler.h"
 #include "stm32g0xx.h"
 // #include <corecrt_math.h>
+// #include <locale>
 #include <stdint.h>
 #include <sys/_intsup.h>
 #include <sys/types.h>
@@ -62,16 +64,23 @@ TIM_HandleTypeDef htim17;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-uint32_t clkspeed = 16000000;
-
 uint32_t ADC_Buff[5];
 int32_t meas_volt[5];
 
-uint32_t PWM_Freq = 200;
-float PWM_DutyC = 50;
-int32_t PWM_Period = 65535;
-int32_t PWM_PulseWidth = 32767;
 int32_t conter = 0;
+
+int32_t clkspeed = 16000000;
+
+uint32_t PWM_Freq = 5;
+int32_t PWM_DutyC = 50;
+int32_t PWM_Period = 1000;
+int32_t PWM_Prescaler = 160;
+int32_t PWM_PulseWidth;
+
+
+int32_t PWM_Freq_1;  
+int32_t PWM_DutyC_1; 
+int32_t PWM_Period_1;
 
 // char userstring[80];
 uint32_t userinput;
@@ -132,22 +141,26 @@ long map(long x, long in_min, long in_max, long out_min, long out_max)
   return (x - in_min) * (out_max - out_min + 1) / (in_max - in_min + 1) + out_min;
 }
 
-void somefunction()
+uint32_t Timer_CalculatePeriod(uint32_t timerClockHz, uint32_t outputFreqHz, uint16_t prescaler)
 {
-
+    return (timerClockHz / (2*(outputFreqHz * (prescaler + 1))) - 1);
 }
 
-// void programloop()
+// int32_t pulsewidth(int32_t voltage)
 // {
-//     printf("counter: %f", conter);
-//     conter++;
-//     PWM_DutyC = meas_volt_1*111.11f;
-//     PWM_PulseWidth = (int)((PWM_Period*PWM_DutyC)/100);
-//     __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, PWM_PulseWidth);
-//     printf("ADC V: %.2f V - DutyC %f\r\n", meas_volt_1, PWM_DutyC);
-//     HAL_Delay(100);
-//     return;
+//   if()
 // }
+
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM3) // Check which timer triggered the interrupt
+  {
+    // Your interrupt logic (e.g., toggle an LED, set a flag)
+    printf("eitje klaar");
+  }
+}
+
 
 /* USER CODE END 0 */
 
@@ -190,15 +203,19 @@ int main(void)
   // setvbuf(stdin, NULL, _IONBF, 0); // for scanf
   /* USER CODE BEGIN 2 */
   // printf("USER CODE BEGIN 2 \n");
-  PWM_Period = clkspeed/(2*PWM_Freq) - 1;
+  // PWM_Period = clkspeed/(2*PWM_Freq) - 1;
   PWM_DutyC  = 50;
-
+  PWM_Period = Timer_CalculatePeriod(clkspeed, PWM_Freq, PWM_Prescaler);
   TIM3->ARR  = PWM_Period;
   TIM3->CCR1 = (int)((PWM_Period*PWM_DutyC)/100);
+
+  TIM1->ARR  = PWM_Period;
+  TIM1->CCR1 = (int)((PWM_Period*PWM_DutyC)/100);
   // __HAL_TIM_SET_AUTORELOAD(&htim1, PWM_Period);
   // __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, (int)((PWM_Period*PWM_DutyC)/100));
 
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 
   HAL_ADCEx_Calibration_Start(&hadc1);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADC_Buff, 5);
@@ -214,10 +231,11 @@ int main(void)
     printf("counter: %ld\n", (long)conter);
     conter++;
     
-    PWM_Freq    = map(meas_volt[0], 0, 3300, 200, 5000); 
-    PWM_DutyC   = map(meas_volt[1], 0, 3300, 0, 100);
-    // TIM3->CCR1  = (int)((PWM_Period*PWM_DutyC)/100);
-    // TIM3->ARR   = clkspeed/(2*PWM_Freq) - 1;
+    PWM_Freq_1  = map(meas_volt[0], 0, 3300, 10, 2000); // V->Hz
+    PWM_DutyC_1 = map(meas_volt[1], 0, 3300, 0, 100);   // V->%
+    PWM_Period_1= clkspeed/(2*PWM_Freq_1) - 1;
+    TIM1->CCR1  = (int)((PWM_Period_1 * PWM_DutyC_1)/100);
+    TIM1->ARR   = PWM_Period_1;
 
     // print voltage measurement to compare to scope
     for (int i = 0; i < 5; i++)
@@ -307,7 +325,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
   hadc1.Init.DMAContinuousRequests = ENABLE;
   hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
-  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_1CYCLE_5;
+  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_7CYCLES_5;
   hadc1.Init.OversamplingMode = DISABLE;
   hadc1.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_HIGH;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -452,7 +470,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 0;
+  htim3.Init.Prescaler = PWM_Prescaler;
   htim3.Init.CounterMode = TIM_COUNTERMODE_CENTERALIGNED1;
   htim3.Init.Period = 65535;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
