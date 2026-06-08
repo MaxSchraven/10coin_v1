@@ -82,6 +82,11 @@ int32_t PWM_Freq_1;
 int32_t PWM_DutyC_1; 
 int32_t PWM_Period_1;
 
+int32_t PWM_Freq_17;  
+int32_t PWM_DutyC_17; 
+int32_t PWM_Period_17;
+int32_t PWM_DeadT_17;
+
 // char userstring[80];
 uint32_t userinput;
 /* USER CODE END PV */
@@ -143,7 +148,7 @@ long map(long x, long in_min, long in_max, long out_min, long out_max)
 
 uint32_t Timer_CalculatePeriod(uint32_t timerClockHz, uint32_t outputFreqHz, uint16_t prescaler)
 {
-    return (timerClockHz / (2*(outputFreqHz * (prescaler + 1))) - 1);
+    return (timerClockHz / (outputFreqHz * (prescaler + 1)) - 1);
 }
 
 // int32_t pulsewidth(int32_t voltage)
@@ -177,7 +182,7 @@ int main(void)
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  /* Reset of/ all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
@@ -211,11 +216,20 @@ int main(void)
 
   TIM1->ARR  = PWM_Period;
   TIM1->CCR1 = (int)((PWM_Period*PWM_DutyC)/100);
+
+  PWM_DutyC_17= 50;
+  PWM_Freq_17 = 70000;
+  PWM_Period_17 = Timer_CalculatePeriod(clkspeed, PWM_Freq_17, 0);
+  TIM17->ARR  = PWM_Period_17;
+  TIM17->CCR1 = (int)((PWM_Period_17*PWM_DutyC_17)/100);
+  TIM17->BDTR = 5;
   // __HAL_TIM_SET_AUTORELOAD(&htim1, PWM_Period);
   // __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, (int)((PWM_Period*PWM_DutyC)/100));
 
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);
+  HAL_TIMEx_PWMN_Start(&htim17, TIM_CHANNEL_1);
 
   HAL_ADCEx_Calibration_Start(&hadc1);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ADC_Buff, 5);
@@ -231,11 +245,11 @@ int main(void)
     printf("counter: %ld\n", (long)conter);
     conter++;
     
-    PWM_Freq_1  = map(meas_volt[0], 0, 3300, 10, 2000); // V->Hz
-    PWM_DutyC_1 = map(meas_volt[1], 0, 3300, 0, 100);   // V->%
-    PWM_Period_1= clkspeed/(2*PWM_Freq_1) - 1;
-    TIM1->CCR1  = (int)((PWM_Period_1 * PWM_DutyC_1)/100);
-    TIM1->ARR   = PWM_Period_1;
+    // PWM_Freq_1  = map(meas_volt[0], 0, 3300, 10, 2000); // V->Hz
+    PWM_DutyC_17 = map(meas_volt[1], 0, 3300, 0, 100);   // V->%
+    // PWM_Period_17= clkspeed/(2*PWM_Freq_1) - 1;
+    TIM17->CCR1  = (int)((PWM_Period_17 * PWM_DutyC_17)/100);
+    // TIM1->ARR   = PWM_Period_1;
 
     // print voltage measurement to compare to scope
     for (int i = 0; i < 5; i++)
@@ -244,7 +258,7 @@ int main(void)
     }
     
     // so the serial monitor is readable at all
-    HAL_Delay(500);
+    HAL_Delay(50);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -587,7 +601,7 @@ static void MX_TIM17_Init(void)
   htim17.Init.Period = 65535;
   htim17.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim17.Init.RepetitionCounter = 0;
-  htim17.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim17.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim17) != HAL_OK)
   {
     Error_Handler();
@@ -597,7 +611,7 @@ static void MX_TIM17_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
+  sConfigOC.Pulse = 33000;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
@@ -610,7 +624,7 @@ static void MX_TIM17_Init(void)
   sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
   sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
   sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
-  sBreakDeadTimeConfig.DeadTime = 0;
+  sBreakDeadTimeConfig.DeadTime = 100;
   sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
   sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
   sBreakDeadTimeConfig.BreakFilter = 0;
