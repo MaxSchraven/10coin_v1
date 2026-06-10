@@ -67,20 +67,21 @@ UART_HandleTypeDef huart2;
 uint32_t ADC_Buff[5];
 int32_t meas_volt[5];
 
-int32_t conter = 0;
+int32_t connter = 0;
 
 int32_t clkspeed = 16000000;
 
-uint32_t PWM_Freq = 5;
-int32_t PWM_DutyC = 50;
-int32_t PWM_Period = 1000;
-int32_t PWM_Prescaler = 160;
-int32_t PWM_PulseWidth;
+uint32_t PWM_Freq_3;
+int32_t PWM_DutyC_3;
+int32_t PWM_Period_3;
+int32_t PWM_Prescaler_3;
+int32_t PWM_PulseWidth_3;
 
 
 int32_t PWM_Freq_1;  
 int32_t PWM_DutyC_1; 
 int32_t PWM_Period_1;
+int32_t PWM_DeadT_1;
 
 int32_t PWM_Freq_17;  
 int32_t PWM_DutyC_17; 
@@ -151,6 +152,12 @@ uint32_t Timer_CalculatePeriod(uint32_t timerClockHz, uint32_t outputFreqHz, uin
     return (timerClockHz / (outputFreqHz * (prescaler + 1)) - 1);
 }
 
+uint32_t Timer_CalculateDutyC(uint32_t PWM_Period, uint32_t PWM_DutyC)
+{
+    return (int)((PWM_Period*PWM_DutyC)/100);
+}
+
+
 // int32_t pulsewidth(int32_t voltage)
 // {
 //   if()
@@ -209,20 +216,33 @@ int main(void)
   /* USER CODE BEGIN 2 */
   // printf("USER CODE BEGIN 2 \n");
   // PWM_Period = clkspeed/(2*PWM_Freq) - 1;
-  PWM_DutyC  = 50;
-  PWM_Period = Timer_CalculatePeriod(clkspeed, PWM_Freq, PWM_Prescaler);
-  TIM3->ARR  = PWM_Period;
-  TIM3->CCR1 = (int)((PWM_Period*PWM_DutyC)/100);
+  PWM_Freq_3 = 5;
+  PWM_DutyC_3 = 50;
+  PWM_Prescaler_3 = 160;
+  PWM_Period_3 = Timer_CalculatePeriod(clkspeed, PWM_Freq_3, PWM_Prescaler);
+  TIM3->ARR  = PWM_Period_3;
+  TIM3->CCR1 = (int)((PWM_Period_3*PWM_DutyC_3)/100);
 
-  TIM1->ARR  = PWM_Period;
-  TIM1->CCR1 = (int)((PWM_Period*PWM_DutyC)/100);
 
-  PWM_DutyC_17= 50;
-  PWM_Freq_17 = 70000;
+
+  PWM_Freq_1    = 80000;  
+  PWM_DutyC_1   = 50; 
+  PWM_Period_1  = Timer_CalculatePeriod(clkspeed, PWM_Freq_1, 0);
+  PWM_DeadT_1   = 5;
+
+  TIM1->ARR     = PWM_Period_1;
+  TIM1->CCR1    = Timer_CalculateDutyC(PWM_Period_1,PWM_DutyC_1);
+  TIM1->BDTR    = PWM_DeadT_1;
+
+
+  PWM_DutyC_17  = 50;
+  PWM_Freq_17   = 70000;
   PWM_Period_17 = Timer_CalculatePeriod(clkspeed, PWM_Freq_17, 0);
-  TIM17->ARR  = PWM_Period_17;
-  TIM17->CCR1 = (int)((PWM_Period_17*PWM_DutyC_17)/100);
-  TIM17->BDTR = 5;
+  PWM_DeadT_17  = 5;
+
+  TIM17->ARR    = PWM_Period_17;
+  TIM17->CCR1   = Timer_CalculateDutyC(PWM_Period_17,PWM_DutyC_17);
+  TIM17->BDTR   = PWM_DeadT_17;
   // __HAL_TIM_SET_AUTORELOAD(&htim1, PWM_Period);
   // __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, (int)((PWM_Period*PWM_DutyC)/100));
 
