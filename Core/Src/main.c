@@ -67,7 +67,7 @@ UART_HandleTypeDef huart2;
 uint32_t ADC_Buff[5];
 int32_t meas_volt[5];
 
-int32_t connter = 0;
+int32_t conter = 0;
 
 int32_t clkspeed = 16000000;
 
@@ -216,12 +216,13 @@ int main(void)
   /* USER CODE BEGIN 2 */
   // printf("USER CODE BEGIN 2 \n");
   // PWM_Period = clkspeed/(2*PWM_Freq) - 1;
-  PWM_Freq_3 = 5;
-  PWM_DutyC_3 = 50;
+  PWM_Freq_3    = 5;
+  PWM_DutyC_3   = 50;
   PWM_Prescaler_3 = 160;
-  PWM_Period_3 = Timer_CalculatePeriod(clkspeed, PWM_Freq_3, PWM_Prescaler);
-  TIM3->ARR  = PWM_Period_3;
-  TIM3->CCR1 = (int)((PWM_Period_3*PWM_DutyC_3)/100);
+  PWM_Period_3  = Timer_CalculatePeriod(clkspeed, PWM_Freq_3, PWM_Prescaler_3);
+  TIM3->ARR     = PWM_Period_3;
+  TIM3->CCR1    = (int)((PWM_Period_3*PWM_DutyC_3)/100);
+  TIM3->PSC     = PWM_Prescaler_3;
 
 
 
@@ -504,7 +505,7 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = PWM_Prescaler;
+  htim3.Init.Prescaler = 0;
   htim3.Init.CounterMode = TIM_COUNTERMODE_CENTERALIGNED1;
   htim3.Init.Period = 65535;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
